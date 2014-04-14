@@ -1,5 +1,5 @@
 /**
- * @brief Test file for fzzlib library
+ * @brief Example file for fzzlib library
  * @author Petr Kacer <kacerpetr@gmail.com>
  * @date 12.4.2014
  */
@@ -57,32 +57,57 @@ void createExample(){
     //adding rules for inferential mechanism
     printf("\nAdding rules for inferential mechanism ...");
     //rules for first output (throttle)
-    fzz_addRule("if distance is small  and speed is slow   then throttle is slight");
-    fzz_addRule("if distance is small  and speed is medium then throttle is zero");
-    fzz_addRule("if distance is small  and speed is fast   then throttle is zero");
-    fzz_addRule("if distance is medium and speed is slow   then throttle is slight");
+    fzz_addRule("if distance is small and speed is slow then throttle is slight");
+    fzz_addRule("if distance is small and speed is medium then throttle is zero");
+    fzz_addRule("if distance is small and speed is fast then throttle is zero");
+    fzz_addRule("if distance is medium and speed is slow then throttle is slight");
     fzz_addRule("if distance is medium and speed is medium then throttle is slight");
-    fzz_addRule("if distance is medium and speed is fast   then throttle is zero");
-    fzz_addRule("if distance is big    and speed is slow   then throttle is full");
-    fzz_addRule("if distance is big    and speed is medium then throttle is slight");
-    fzz_addRule("if distance is big    and speed is fast   then throttle is zero");
+    fzz_addRule("if distance is medium and speed is fast then throttle is zero");
+    fzz_addRule("if distance is big and speed is slow then throttle is full");
+    fzz_addRule("if distance is big and speed is medium then throttle is slight");
+    fzz_addRule("if distance is big and speed is fast then throttle is zero");
     //rules for second output (brake)
-    fzz_addRule("if distance is small  and speed is slow   then brake is zero");
-    fzz_addRule("if distance is small  and speed is medium then brake is slight");
-    fzz_addRule("if distance is small  and speed is fast   then brake is hard");
-    fzz_addRule("if distance is medium and speed is slow   then brake is zero");
+    fzz_addRule("if distance is small and speed is slow then brake is zero");
+    fzz_addRule("if distance is small and speed is medium then brake is slight");
+    fzz_addRule("if distance is small and speed is fast then brake is hard");
+    fzz_addRule("if distance is medium and speed is slow then brake is zero");
     fzz_addRule("if distance is medium and speed is medium then brake is zero");
-    fzz_addRule("if distance is medium and speed is fast   then brake is slight");
-    fzz_addRule("if distance is big    and speed is slow   then brake is zero");
-    fzz_addRule("if distance is big    and speed is medium then brake is zero");
-    fzz_addRule("if distance is big    and speed is fast   then brake is zero");
+    fzz_addRule("if distance is medium and speed is fast then brake is slight");
+    fzz_addRule("if distance is big and speed is slow then brake is zero");
+    fzz_addRule("if distance is big and speed is medium then brake is zero");
+    fzz_addRule("if distance is big and speed is fast then brake is zero");
     //all rules added
-    printf(" completed");
+    printf(" completed\n");
+}
+
+/**
+ * @brief Example of printing info about fuzzy system to string
+ */
+void printExample(){
+    //prints intput set of first input
+    printf("\n");
+    fzz_printInputSet(0);
     
+    //prints intput set of second output
+    printf("\n");
+    fzz_printOutputSet(1);
+    
+    //prints rules of inferential mechanism
+    printf("\n");
+    fzz_printRules();
+    
+    //prints entire system
+    fzz_printSystem();
+}
+
+/**
+ * @brief Output calculation example (system deinitialiaztion included)
+ */
+void gettingOutputExample(){
     //fuzzy system deinit
     printf("\nFuzzy system deinit ...");
     fzz_deinit();
-    printf(" completed");    
+    printf(" completed");   
 }
 
 /**
@@ -93,7 +118,13 @@ int main(int argc, const char* argv[]){
     //example of creating fuzzy system
     createExample();
     
-    //All done
+    //example of printing info about fuzzy system to string
+    printExample();
+    
+    //output calculation example
+    gettingOutputExample();
+        
+    //all done
     printf("\n");
     return 0;
 }

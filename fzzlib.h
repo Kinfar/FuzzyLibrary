@@ -90,3 +90,29 @@ double fzz_getOutput(int index);
  * inferential mechanism and defuzzyfication
  */
 void fzz_calculateOutput();
+
+///////////////////////////////////////////////////
+//////// Support functions ////////////////////////
+///////////////////////////////////////////////////
+
+/**
+ * @brief Prints input set of fuzzy sets to console
+ * @param index index of input set of fuzzy sets
+ */
+void fzz_printInputSet(int index);
+
+/**
+ * @brief Prints output set of fuzzy sets to console
+ * @param index index of output set of fuzzy sets
+ */
+void fzz_printOutputSet(int index);
+
+/**
+ * @brief Prints list of inferential mechanism rules to console
+ */
+void fzz_printRules();
+
+/**
+ * @brief Prints info about entire fuzzy system to console
+ */
+void fzz_printSystem();

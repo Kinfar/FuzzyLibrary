@@ -12,13 +12,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <assert.h>
 
 ///////////////////////////////////////////////////
 //////// Defines //////////////////////////////////
 ///////////////////////////////////////////////////
 
 #define NAME_LENGTH 32
-#define MAX_RULES 32
+#define MAX_RULES 512
 
 ///////////////////////////////////////////////////
 //////// Data types ///////////////////////////////
@@ -76,7 +77,9 @@ void fzz_init(int inputs, int outputs){
     fzzSystem.outLen = outputs;
     
     //creation of input set of fuzzy sets
-    fzzSystem.inSet = (TFcnsSet*) malloc(inputs * sizeof(TFcnsSet));
+    fzzSystem.inSet = (TFcnsSet*)malloc(inputs * sizeof(TFcnsSet));
+    assert(fzzSystem.inSet != NULL && "Memory allocation error in fzz_init: fzzSystem.inSet");
+    
     for(i = 0; i < inputs; i++){
         fzzSystem.inSet[i].fSet = NULL;
         fzzSystem.inSet[i].length = 0;
@@ -84,7 +87,8 @@ void fzz_init(int inputs, int outputs){
     }
     
     //creation of output set of fuzzy sets
-    fzzSystem.outSet = (TFcnsSet*) malloc(outputs * sizeof(TFcnsSet));
+    fzzSystem.outSet = (TFcnsSet*)malloc(outputs * sizeof(TFcnsSet));
+    assert(fzzSystem.outSet != NULL && "Memory allocation error in fzz_init: fzzSystem.outSet");
     for(i = 0; i < inputs; i++){
         fzzSystem.outSet[i].fSet = NULL;
         fzzSystem.outSet[i].length = 0;
@@ -92,11 +96,13 @@ void fzz_init(int inputs, int outputs){
     }
     
     //array for storing system inputs given by user
-    fzzSystem.input = (double*) malloc(inputs * sizeof(double));
+    fzzSystem.input = (double*)malloc(inputs * sizeof(double));
+    assert(fzzSystem.input != NULL && "Memory allocation error in fzz_init: fzzSystem.input");
     for(i = 0; i < inputs; i++) fzzSystem.input[i] = 0;
     
     //array for storing calculated system outputs
-    fzzSystem.output = (double*) malloc(outputs * sizeof(double));
+    fzzSystem.output = (double*)malloc(outputs * sizeof(double));
+    assert(fzzSystem.output != NULL && "Memory allocation error in fzz_init: fzzSystem.output");
     for(i = 0; i < outputs; i++) fzzSystem.output[i] = 0;
     
     //list of fuzzy inference rules
@@ -142,13 +148,14 @@ void fzz_deinit(){
 
 void fzz_initInputFcns(int index, int length, char* name){
     int i = 0;
-    
+   
     //stores length information
     fzzSystem.inSet[index].length = length;
     fzzSystem.inSet[index].name[0] = '\0';
     
     //creates array for fuzzy sets
-    fzzSystem.inSet[index].fSet = (TFuzzySet*) malloc(length * sizeof(TFuzzySet));
+    fzzSystem.inSet[index].fSet = (TFuzzySet*)malloc(length * sizeof(TFuzzySet));
+    assert(fzzSystem.inSet[index].fSet != NULL && "Memory allocation error in fzz_initInputFcns: fzzSystem.inSet[index].fSet");
     for(i = 0; i < length; i++){
         fzzSystem.inSet[index].fSet[i].left = 0;
         fzzSystem.inSet[index].fSet[i].top = 0;
@@ -168,7 +175,8 @@ void fzz_initOutputFcns(int index, int length, char* name){
     fzzSystem.outSet[index].name[0] = '\0';
     
     //creates array for fuzzy sets
-    fzzSystem.outSet[index].fSet = (TFuzzySet*) malloc(length * sizeof(TFuzzySet));
+    fzzSystem.outSet[index].fSet = (TFuzzySet*)malloc(length * sizeof(TFuzzySet));
+    assert(fzzSystem.outSet[index].fSet != NULL && "Memory allocation error in fzz_initOutputFcns: fzzSystem.outSet[index].fSet");
     for(i = 0; i < length; i++){
         fzzSystem.outSet[index].fSet[i].left = 0;
         fzzSystem.outSet[index].fSet[i].top = 0;
@@ -202,8 +210,9 @@ void fzz_setOutputFcn(int index, int fcSet, double left, double top, double righ
 
 void fzz_addRule(char* rule){
     int len = strlen(rule);
-    fzzSystem.rule[fzzSystem.ruLen] = (char*) malloc(len * sizeof(char));
-    strncpy(fzzSystem.rule[fzzSystem.ruLen], rule, NAME_LENGTH);
+    fzzSystem.rule[fzzSystem.ruLen] = (char*)malloc((len+1) * sizeof(char));
+    assert(fzzSystem.rule[fzzSystem.ruLen] != NULL && "Memory allocation error in fzz_addRule: fzzSystem.rule[fzzSystem.ruLen]");
+    strcpy(fzzSystem.rule[fzzSystem.ruLen], rule);
     fzzSystem.ruLen++;
 }
 
@@ -216,5 +225,83 @@ double fzz_getOutput(int index){
 }
 
 void fzz_calculateOutput(){
+    //TODO
+}
+
+///////////////////////////////////////////////////
+//////// Support functions ////////////////////////
+///////////////////////////////////////////////////
+
+void fzz_printInputSet(int index){
+    int i = 0;
     
+    //header
+    printf("Input set for input %d named \"%s\":\n", index, fzzSystem.inSet[index].name);
+    
+    //fuzzy sets
+    for(i = 0; i < fzzSystem.inSet[index].length; i++){
+        printf(
+            "Fuzzy set %d named \"%s\": [%f,0],[%f,1],[%f,0]\n", 
+            i,
+            fzzSystem.inSet[index].fSet[i].name,
+            fzzSystem.inSet[index].fSet[i].left,
+            fzzSystem.inSet[index].fSet[i].top,
+            fzzSystem.inSet[index].fSet[i].right
+        );
+    }
+}
+
+void fzz_printOutputSet(int index){
+    int i = 0;
+    
+    //header
+    printf("Output set for output %d named \"%s\":\n", index, fzzSystem.outSet[index].name);
+    
+    //fuzzy sets
+    for(i = 0; i < fzzSystem.outSet[index].length; i++){
+        printf(
+            "Fuzzy set %d named \"%s\": [%f,0],[%f,1],[%f,0]\n", 
+            i,
+            fzzSystem.outSet[index].fSet[i].name,
+            fzzSystem.outSet[index].fSet[i].left,
+            fzzSystem.outSet[index].fSet[i].top,
+            fzzSystem.outSet[index].fSet[i].right
+        );
+    }  
+}
+
+void fzz_printRules(){
+    int i = 0;
+    
+    //header
+    printf("System contains %d rules of inferential mechanism:\n", fzzSystem.ruLen);
+    
+    //rules
+    for(i = 0; i < fzzSystem.ruLen; i++){
+        printf("%3d: %s\n", i, fzzSystem.rule[i]);
+    }
+}
+
+void fzz_printSystem(){
+    int i = 0;
+    
+    printf("\n");
+    printf("+----------------------------------------+\n");
+    printf("|              Fuzzy system              |\n");
+    printf("+----------------------------------------+\n\n");
+
+    //input sets
+    for(i = 0; i < fzzSystem.inLen; i++){
+        fzz_printInputSet(i);
+        printf("\n");
+    }
+    
+    //output sets
+    for(i = 0; i < fzzSystem.outLen; i++){
+        fzz_printOutputSet(i);
+        printf("\n");
+    }
+    
+    //system rules
+    fzz_printRules();
 }
