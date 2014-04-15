@@ -18,8 +18,12 @@
 //////// Defines //////////////////////////////////
 ///////////////////////////////////////////////////
 
-#define NAME_LENGTH 32
-#define MAX_RULES 512
+#define NAME_LENGTH 16
+#define RULE_LENGTH 128
+#define MAX_RULES 256
+#define MAX_INPUTS 4
+#define MAX_OUTPUTS 2
+#define MAX_FSETS 16
 
 ///////////////////////////////////////////////////
 //////// Data types ///////////////////////////////
@@ -39,7 +43,7 @@ typedef struct{
  * @brief Set of input or output fuzzy sets
  */
 typedef struct{
-    TFuzzySet* fSet;
+    TFuzzySet fSet[MAX_FSETS];
     int length;
     char name[NAME_LENGTH];
 }TFcnsSet;
@@ -50,13 +54,22 @@ typedef struct{
 typedef struct{
     int inLen;
     int outLen;
-    TFcnsSet* inSet;
-    TFcnsSet* outSet;
-    double* input;
-    double* output;
+    TFcnsSet inSet[MAX_INPUTS];
+    TFcnsSet outSet[MAX_OUTPUTS];
+    double input[MAX_INPUTS];
+    double output[MAX_OUTPUTS];
     int ruLen;
-    char* rule[MAX_RULES];
+    char rule[MAX_RULES][RULE_LENGTH];
 }TFzzSystem;
+
+/**
+ * @brief Output of fuzzifycation process
+ */
+typedef struct{
+    int inputIndex;
+    int setIndex;
+    double membership;
+}TFuzzifyOut;
 
 ///////////////////////////////////////////////////
 //////// Global variables /////////////////////////
@@ -71,124 +84,69 @@ TFzzSystem fzzSystem;
 
 void fzz_init(int inputs, int outputs){
     int i = 0;
-  
+    int j = 0;
+    
+    //maximum input / output count check
+    assert(inputs <= MAX_INPUTS && "Required number of inputs exceeds maximum in fzz_init(...)");
+    assert(outputs <= MAX_OUTPUTS && "Required number of outputs exceeds maximum in fzz_init(...)");
+    
     //number of inputs and outputs
     fzzSystem.inLen = inputs;
     fzzSystem.outLen = outputs;
     
-    //creation of input set of fuzzy sets
-    fzzSystem.inSet = (TFcnsSet*)malloc(inputs * sizeof(TFcnsSet));
-    assert(fzzSystem.inSet != NULL && "Memory allocation error in fzz_init: fzzSystem.inSet");
-    
-    for(i = 0; i < inputs; i++){
-        fzzSystem.inSet[i].fSet = NULL;
+    //init of input set of fuzzy sets 
+    for(i = 0; i < MAX_INPUTS; i++){
         fzzSystem.inSet[i].length = 0;
         fzzSystem.inSet[i].name[0] = '\0';
+        //fuzzy set in input set
+        for(j = 0; j < MAX_FSETS; j++){
+            fzzSystem.inSet[i].fSet[j].left = 0;
+            fzzSystem.inSet[i].fSet[j].top = 0;
+            fzzSystem.inSet[i].fSet[j].right = 0;
+            fzzSystem.inSet[i].fSet[j].name[0] = '\0';
+        }
     }
     
-    //creation of output set of fuzzy sets
-    fzzSystem.outSet = (TFcnsSet*)malloc(outputs * sizeof(TFcnsSet));
-    assert(fzzSystem.outSet != NULL && "Memory allocation error in fzz_init: fzzSystem.outSet");
-    for(i = 0; i < inputs; i++){
-        fzzSystem.outSet[i].fSet = NULL;
+    //init of output set of fuzzy sets
+    for(i = 0; i < MAX_OUTPUTS; i++){
         fzzSystem.outSet[i].length = 0;
         fzzSystem.outSet[i].name[0] = '\0';
+        //fuzzy sets in output set
+        for(j = 0; j < MAX_FSETS; j++){
+            fzzSystem.outSet[i].fSet[j].left = 0;
+            fzzSystem.outSet[i].fSet[j].top = 0;
+            fzzSystem.outSet[i].fSet[j].right = 0;
+            fzzSystem.outSet[i].fSet[j].name[0] = '\0';
+        }
     }
     
-    //array for storing system inputs given by user
-    fzzSystem.input = (double*)malloc(inputs * sizeof(double));
-    assert(fzzSystem.input != NULL && "Memory allocation error in fzz_init: fzzSystem.input");
-    for(i = 0; i < inputs; i++) fzzSystem.input[i] = 0;
-    
-    //array for storing calculated system outputs
-    fzzSystem.output = (double*)malloc(outputs * sizeof(double));
-    assert(fzzSystem.output != NULL && "Memory allocation error in fzz_init: fzzSystem.output");
-    for(i = 0; i < outputs; i++) fzzSystem.output[i] = 0;
+    //arrays for storing system inputs and output
+    for(i = 0; i < MAX_INPUTS; i++) fzzSystem.input[i] = 0;
+    for(i = 0; i < MAX_OUTPUTS; i++) fzzSystem.output[i] = 0;
     
     //list of fuzzy inference rules
-    for(i = 0; i < MAX_RULES; i++){
-        fzzSystem.rule[i] = NULL;
-    }
     fzzSystem.ruLen = 0;
-}
-
-void fzz_deinit(){
-    int i = 0;
-    
-    //dealocation of input set of fuzzy sets
-    for(i = 0; i < fzzSystem.inLen; i++){
-        free(fzzSystem.inSet[i].fSet);
-        fzzSystem.inSet[i].fSet = NULL;
-    }
-    free(fzzSystem.inSet);
-    fzzSystem.inSet = NULL;
-
-    //dealocation of output set of fuzzy sets
-    for(i = 0; i < fzzSystem.outLen; i++){
-        free(fzzSystem.outSet[i].fSet);
-        fzzSystem.outSet[i].fSet = NULL;
-    }
-    free(fzzSystem.outSet);
-    fzzSystem.outSet = NULL;
-    
-    //array for storing system inputs given by user
-    free(fzzSystem.input);
-    fzzSystem.input = NULL;
-    
-    //array for storing calculated system outputs
-    free(fzzSystem.output);
-    fzzSystem.output = NULL;
-    
-    //list of fuzzy inference rules
-    for(i = 0; i < MAX_RULES; i++){
-        free(fzzSystem.rule[i]);
-        fzzSystem.rule[i] = NULL;
-    }
+    for(i = 0; i < MAX_RULES; i++) fzzSystem.rule[i][0] = '\0';
 }
 
 void fzz_initInputFcns(int index, int length, char* name){
-    int i = 0;
-   
-    //stores length information
+    assert(index < fzzSystem.inLen && "Index out of range in fzz_initInputFcns(...)");
+    assert(length <= MAX_FSETS && "Required number of fuzzy sets exceeds maximum in fzz_initInputFcns(...)");
     fzzSystem.inSet[index].length = length;
-    fzzSystem.inSet[index].name[0] = '\0';
-    
-    //creates array for fuzzy sets
-    fzzSystem.inSet[index].fSet = (TFuzzySet*)malloc(length * sizeof(TFuzzySet));
-    assert(fzzSystem.inSet[index].fSet != NULL && "Memory allocation error in fzz_initInputFcns: fzzSystem.inSet[index].fSet");
-    for(i = 0; i < length; i++){
-        fzzSystem.inSet[index].fSet[i].left = 0;
-        fzzSystem.inSet[index].fSet[i].top = 0;
-        fzzSystem.inSet[index].fSet[i].right = 0;
-        fzzSystem.inSet[index].fSet[i].name[0] = '\0';
-    }
-    
-    //stores name of set of fuzzy sets
-     strncpy(fzzSystem.inSet[index].name, name, NAME_LENGTH);
+    strncpy(fzzSystem.inSet[index].name, name, NAME_LENGTH);
 }
 
 void fzz_initOutputFcns(int index, int length, char* name){
-    int i = 0;
-    
-    //stores length information
+    assert(index < fzzSystem.outLen && "Index out of range in fzz_initOutputFcns(...)");
+    assert(length <= MAX_FSETS && "Required number of fuzzy sets exceeds maximum in fzz_initOutputFcns(...)");
     fzzSystem.outSet[index].length = length;
-    fzzSystem.outSet[index].name[0] = '\0';
-    
-    //creates array for fuzzy sets
-    fzzSystem.outSet[index].fSet = (TFuzzySet*)malloc(length * sizeof(TFuzzySet));
-    assert(fzzSystem.outSet[index].fSet != NULL && "Memory allocation error in fzz_initOutputFcns: fzzSystem.outSet[index].fSet");
-    for(i = 0; i < length; i++){
-        fzzSystem.outSet[index].fSet[i].left = 0;
-        fzzSystem.outSet[index].fSet[i].top = 0;
-        fzzSystem.outSet[index].fSet[i].right = 0;
-        fzzSystem.outSet[index].fSet[i].name[0] = '\0';
-    }
-    
-    //stores name of set of fuzzy sets
-     strncpy(fzzSystem.outSet[index].name, name, NAME_LENGTH);
+    strncpy(fzzSystem.outSet[index].name, name, NAME_LENGTH);
 }
 
 void fzz_setInputFcn(int index, int fcSet, double left, double top, double right, char* name){
+    assert(fcSet < fzzSystem.inLen && "Input set index out of range in fzz_setInputFcn(...)");
+    assert(index < fzzSystem.inSet[fcSet].length && "Index out of range in fzz_setInputFcn(...)");
+    
     //membership function
     fzzSystem.inSet[fcSet].fSet[index].left = left;
     fzzSystem.inSet[fcSet].fSet[index].top = top;
@@ -199,6 +157,9 @@ void fzz_setInputFcn(int index, int fcSet, double left, double top, double right
 }
 
 void fzz_setOutputFcn(int index, int fcSet, double left, double top, double right, char* name){
+    assert(fcSet < fzzSystem.outLen && "Output set index out of range in fzz_setOutputFcn(...)");
+    assert(index < fzzSystem.outSet[fcSet].length && "Index out of range in fzz_setOutputFcn(...)");
+    
     //membership function
     fzzSystem.outSet[fcSet].fSet[index].left = left;
     fzzSystem.outSet[fcSet].fSet[index].top = top;
@@ -209,19 +170,29 @@ void fzz_setOutputFcn(int index, int fcSet, double left, double top, double righ
 }
 
 void fzz_addRule(char* rule){
-    int len = strlen(rule);
-    fzzSystem.rule[fzzSystem.ruLen] = (char*)malloc((len+1) * sizeof(char));
-    assert(fzzSystem.rule[fzzSystem.ruLen] != NULL && "Memory allocation error in fzz_addRule: fzzSystem.rule[fzzSystem.ruLen]");
-    strcpy(fzzSystem.rule[fzzSystem.ruLen], rule);
+    assert(fzzSystem.ruLen < MAX_RULES && "Maximum number of inferential mechanism rules exceeded in addRule(...)");
+    strncpy(fzzSystem.rule[fzzSystem.ruLen], rule, RULE_LENGTH);
     fzzSystem.ruLen++;
 }
 
 void fzz_setInput(int index, double value){
+    assert(index < fzzSystem.inLen && "Index out of range in fzz_setInput(...)");
     fzzSystem.input[index] = value;
 }
 
 double fzz_getOutput(int index){
+    assert(index < fzzSystem.outLen && "Index out of range in fzz_getOutput(...)");
     return fzzSystem.output[index];
+}
+
+/**
+ * @brief Calculates fuzzified value of input with given index
+ * Internal function
+ * @param index index of input and index of input set
+ * @param fzOut output data pointer
+ */
+void fzz_fuzzify(int index, TFuzzifyOut* fzOut){
+    
 }
 
 void fzz_calculateOutput(){
@@ -234,6 +205,9 @@ void fzz_calculateOutput(){
 
 void fzz_printInputSet(int index){
     int i = 0;
+    
+    //index check
+    assert(index < fzzSystem.inLen && "Index out of range in fzz_printInputSet(...)");
     
     //header
     printf("Input set for input %d named \"%s\":\n", index, fzzSystem.inSet[index].name);
@@ -253,6 +227,9 @@ void fzz_printInputSet(int index){
 
 void fzz_printOutputSet(int index){
     int i = 0;
+    
+    //index check
+    assert(index < fzzSystem.outLen && "Index out of range in fzz_printOutputSet(...)");
     
     //header
     printf("Output set for output %d named \"%s\":\n", index, fzzSystem.outSet[index].name);

@@ -104,10 +104,7 @@ void printExample(){
  * @brief Output calculation example (system deinitialiaztion included)
  */
 void gettingOutputExample(){
-    //fuzzy system deinit
-    printf("\nFuzzy system deinit ...");
-    fzz_deinit();
-    printf(" completed");   
+
 }
 
 /**

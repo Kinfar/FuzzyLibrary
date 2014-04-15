@@ -10,17 +10,11 @@
 
 /**
  * @brief Initialization of fuzzy system
+ * Clears system data and sets number of inputs and outputs
  * @param inputs number of system inputs
  * @param outputs number of system outputs
  */
 void fzz_init(int inputs, int outputs);
-
-/**
- * @brief Fuzzy logic system deinitialization
- * Clears input and output fuzzy sets, input and output 
- * values and deallocates all allocated memory
- */
-void fzz_deinit();
 
 /**
  * @brief Initialization of membership functions input set
