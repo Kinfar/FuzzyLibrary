@@ -13,6 +13,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
+#include <float.h>
 
 ///////////////////////////////////////////////////
 //////// Defines //////////////////////////////////
@@ -24,6 +25,9 @@
 #define MAX_INPUTS 4
 #define MAX_OUTPUTS 2
 #define MAX_FSETS 16
+#define MAX_INFRES 64
+#define WBUF_LENGTH 16
+#define COG_STEP 0.02
 
 ///////////////////////////////////////////////////
 //////// Data types ///////////////////////////////
@@ -63,21 +67,50 @@ typedef struct{
 }TFzzSystem;
 
 /**
- * @brief Output of fuzzifycation process
+ * @brief Result of fuzzifycation for one fuzzy set
  */
 typedef struct{
-    int inputIndex;
-    int setIndex;
     double membership;
+    int setIndex;
+}TFuzzifyRes;
+
+/**
+ * @brief Output of fuzzifycation process for one input
+ */
+typedef struct{
+    TFuzzifyRes res[MAX_FSETS];
+    int length;
 }TFuzzifyOut;
+
+/**
+ * @brief Result of inference of one matching rule
+ */
+typedef struct{
+    double value;
+    int fSet;
+}TInfRes;
+
+/**
+ * @brief Result of inference for one output
+ */
+typedef struct{
+    TInfRes res[MAX_INFRES];
+    int length;
+}TInfOut;
 
 ///////////////////////////////////////////////////
 //////// Global variables /////////////////////////
 ///////////////////////////////////////////////////
 
-//Fuzzy system structure
+///Fuzzy system structure
 TFzzSystem fzzSystem;
 
+///Fuzzyfication output
+TFuzzifyOut fzfOut[MAX_INPUTS];
+
+//Inferential mechanism output
+TInfOut infOut[MAX_OUTPUTS];
+    
 ///////////////////////////////////////////////////
 //////// Main functions ///////////////////////////
 ///////////////////////////////////////////////////
@@ -186,17 +219,386 @@ double fzz_getOutput(int index){
 }
 
 /**
+ * @brief Returns index of input with given name
+ * Internal function
+ * @param name name of input set of fuzzy sets
+ * @return index if found, -1 if not
+ */
+int fzz_inputIndex(char* name){
+    int i = 0;
+    //search inputs
+    for(i = 0; i < fzzSystem.inLen; i++){
+        if(!strcmp(name, fzzSystem.inSet[i].name)) 
+            return i;
+    }
+    //nothing found
+    return -1;
+}
+
+/**
+ * @brief Returns index of output with given name
+ * Internal function
+ * @param name name of output set of fuzzy sets
+ * @return index if found, -1 if not
+ */
+int fzz_outputIndex(char* name){
+    int i = 0;
+    //search inputs
+    for(i = 0; i < fzzSystem.outLen; i++){
+        if(!strcmp(name, fzzSystem.outSet[i].name)) 
+            return i;
+    }
+    //nothing found
+    return -1;
+}
+
+/**
+ * @brief Returns index of fuzzy set for given input
+ * Internal function
+ * @param name name of fuzzy set
+ * @param index index of input
+ * @return index if found, -1 if not
+ */
+int fzz_inputFSetIndex(int index, char* name){
+    int i = 0;
+    //search inputs
+    for(i = 0; i < fzzSystem.inSet[index].length; i++){
+        if(!strcmp(name, fzzSystem.inSet[index].fSet[i].name)) 
+            return i;
+    }
+    //nothing found
+    return -1;
+}
+
+/**
+ * @brief Returns index of fuzzy set for given output
+ * Internal function
+ * @param namev name of fuzzy set
+ * @param index index of output
+ * @return index if found, -1 if not
+ */
+int fzz_outputFSetIndex(int index, char* name){
+    int i = 0;
+    //search inputs
+    for(i = 0; i < fzzSystem.outSet[index].length; i++){
+        if(!strcmp(name, fzzSystem.outSet[index].fSet[i].name)) 
+            return i;
+    }
+    //nothing found
+    return -1;  
+}
+
+/**
  * @brief Calculates fuzzified value of input with given index
  * Internal function
  * @param index index of input and index of input set
  * @param fzOut output data pointer
  */
-void fzz_fuzzify(int index, TFuzzifyOut* fzOut){
+void fzz_fuzzify(int in){
+    int i = 0;
     
+    //through all fuzzy sets of given output
+    for(i = 0; i < fzzSystem.inSet[in].length; i++){
+        //input value intersects fuzzy set
+        if(fzzSystem.input[in] <= fzzSystem.inSet[in].fSet[i].left) continue;
+        if(fzzSystem.input[in] >= fzzSystem.inSet[in].fSet[i].right) continue;
+        
+        //input intersects left part of fuzzy set
+        if(fzzSystem.input[in] <= fzzSystem.inSet[in].fSet[i].top){
+            double k = 1.0 / (fzzSystem.inSet[in].fSet[i].top - fzzSystem.inSet[in].fSet[i].left); 
+            double x = fzzSystem.input[in] - fzzSystem.inSet[in].fSet[i].left;
+            fzfOut[in].res[fzfOut[in].length].membership = k*x;
+        }
+        //input intersects right part of fuzzy set
+        else{
+            double k = 1.0 / (fzzSystem.inSet[in].fSet[i].top - fzzSystem.inSet[in].fSet[i].right); 
+            double x = fzzSystem.input[in] - fzzSystem.inSet[in].fSet[i].top;
+            fzfOut[in].res[fzfOut[in].length].membership = k*x + 1;
+        }
+        
+        //fuzzy set name and index
+        fzfOut[in].res[fzfOut[in].length].setIndex = i;
+        fzfOut[in].length++; 
+    }
+}
+
+/**
+ * @brief Takes rule and process it
+ * Internal function
+ * @param ruleIndex index of rule
+ */
+void fzz_ininference(int ruleIndex){
+    //state machine
+    int state = 0;
+    int i = 0;
+    char ch = 0;
+    char wbuf[WBUF_LENGTH];
+    int wbufLen = 0;
+    
+    //parsing result variables
+    int inputs[MAX_INPUTS];    
+    int inSets[MAX_INPUTS];
+    int inLen = 0;
+    int output = 0;
+    int outSet = 0;
+    
+    //other variables
+    int var = 0;
+    int j = 0;
+    int k = 0;
+    int match = 0;
+    double min = 0;
+         
+    //state machine to process inferential mechanism rule
+    while((ch = fzzSystem.rule[ruleIndex][i]) != '\0'){
+        switch(state){
+            //initial state (expecting if)
+            case 0:
+                if(ch == ' '){
+                    wbuf[wbufLen] = '\0';
+                    assert(!strcmp(wbuf, "if") && "Invalid rule syntax, expecting 'if' at the beginning of rule in fzz_ininference(...)");
+                    wbufLen = 0;
+                    state = 1;
+                }else{
+                    wbuf[wbufLen] = ch;
+                    wbufLen++;
+                }
+                break;
+            
+            //expecting name of input
+            case 1:
+                if(ch == ' '){
+                    wbuf[wbufLen] = '\0';
+                    var = fzz_inputIndex(wbuf);
+                    assert(var != -1 && "Input name not found in fzz_ininference(...)");
+                    inputs[inLen] = var;
+                    wbufLen = 0;
+                    state = 2;
+                }else{
+                    wbuf[wbufLen] = ch;
+                    wbufLen++;
+                }
+                break;
+                
+            //expecting is
+            case 2:
+                if(ch == ' '){
+                    wbuf[wbufLen] = '\0';
+                    assert(!strcmp(wbuf, "is") && "Invalid rule syntax, expecting 'is' after input name in fzz_ininference(...)");
+                    wbufLen = 0;
+                    state = 3;
+                }else{
+                    wbuf[wbufLen] = ch;
+                    wbufLen++;
+                }
+                break;
+                
+            //expecting name of input fuzzy set
+            case 3:
+                if(ch == ' '){
+                    wbuf[wbufLen] = '\0';
+                    var = fzz_inputFSetIndex(inputs[inLen], wbuf);
+                    assert(var != -1 && "Input fuzzy set name not found in fzz_ininference(...)");
+                    inSets[inLen] = var;
+                    inLen++;
+                    wbufLen = 0;
+                    state = 4;
+                }else{
+                    wbuf[wbufLen] = ch;
+                    wbufLen++;
+                }
+                break;
+                        
+            //expecting if or then
+            case 4:
+                if(ch == ' '){
+                    wbuf[wbufLen] = '\0';
+                    //printf("%s\n", wbuf);
+                    if(!strcmp(wbuf, "and"))  state = 1;
+                    else if(!strcmp(wbuf, "then")) state = 5;
+                    else assert(0 && "Invalid rule syntax, expecting 'and' or 'then' after input fuzzy set name in fzz_ininference(...)"); 
+                    wbufLen = 0;
+                }else{
+                    wbuf[wbufLen] = ch;
+                    wbufLen++;
+                }
+                break;
+                
+            //expecting name of output
+            case 5:
+                if(ch == ' '){
+                    wbuf[wbufLen] = '\0';
+                    output = fzz_outputIndex(wbuf);
+                    assert(output != -1 && "Output name not found in fzz_ininference(...)");
+                    wbufLen = 0;
+                    state = 6;
+                }else{
+                    wbuf[wbufLen] = ch;
+                    wbufLen++;
+                }
+                break;
+                
+            //expecting is
+            case 6:
+                if(ch == ' '){
+                    wbuf[wbufLen] = '\0';
+                    assert(!strcmp(wbuf, "is") && "Invalid rule syntax, expecting 'is' after output name in fzz_ininference(...)");
+                    wbufLen = 0;
+                    state = 7;
+                }else{
+                    wbuf[wbufLen] = ch;
+                    wbufLen++;
+                }
+                break;
+                
+            //expecting name of output fuzzy set
+            case 7:
+                wbuf[wbufLen] = ch;
+                wbufLen++;
+                break;
+        }
+        i++;
+    }
+    
+    //finishig state mechine run
+    wbuf[wbufLen] = '\0';
+    outSet = fzz_outputFSetIndex(output, wbuf);
+    assert(outSet != -1 && "Output fuzzy set name not found in fzz_ininference(...)");
+    wbufLen = 0;
+    wbuf[0] = '\0';
+    
+    //evaluation of parsed rule
+    match = 0;
+    min = 0;
+    for(i = 0; i < fzzSystem.inLen; i++){
+        //search for first input in parsed data
+        for(j = 0; j < inLen; j++){
+            if(i == inputs[j]){
+                //search for fuzzy set in fuzzyfication result
+                for(k = 0; k < fzfOut[i].length; k++){
+                    if(fzfOut[i].res[k].setIndex == inSets[j]){
+                        if(match == 0){
+                            min = fzfOut[i].res[k].membership;
+                        }else if(fzfOut[i].res[k].membership < min){
+                            min = fzfOut[i].res[k].membership;
+                        }
+                        match++;
+                    }
+                }
+                break;
+            }
+        }
+    }
+    
+    //saving evaluation result
+    if(match == inLen){
+        infOut[output].res[infOut[output].length].value = min;
+        infOut[output].res[infOut[output].length].fSet = outSet;
+        infOut[output].length++;
+    }
+}
+
+/**
+ * @brief Used for defuzzyfication
+ * Internal function
+ */
+double fzz_outputValue(int output, double x){
+    double max = 0;
+    int i = 0;
+    int j = 0;
+    double k = 0;
+    double xNorm = 0;
+    double memb = 0;
+    
+    //membership of center
+     for(i = 0; i < infOut[output].length; i++){
+        j = infOut[output].res[i].fSet;
+        //x value intersects fuzzy set
+        if(x <= fzzSystem.outSet[output].fSet[j].left) continue;
+        if(x >= fzzSystem.outSet[output].fSet[j].right) continue;
+        //input intersects left part of fuzzy set
+        if(x <= fzzSystem.outSet[output].fSet[j].top){
+            k = 1.0 / (fzzSystem.outSet[output].fSet[j].top - fzzSystem.outSet[output].fSet[j].left); 
+            xNorm = x - fzzSystem.outSet[output].fSet[j].left;
+            memb = k*xNorm;
+            if(memb > infOut[output].res[i].value)
+                memb = infOut[output].res[i].value;
+            if(memb > max)
+                max = memb;
+        }
+        //input intersects right part of fuzzy set
+        else{
+            k = 1.0 / (fzzSystem.outSet[output].fSet[j].top - fzzSystem.outSet[output].fSet[j].right); 
+            xNorm = x - fzzSystem.outSet[output].fSet[j].top;
+            memb = k*xNorm + 1;
+            if(memb > infOut[output].res[i].value)
+                memb = infOut[output].res[i].value;
+            if(memb > max)
+                max = memb;
+        }
+    }
+    
+    //returns result
+    return max;
+}
+
+/**
+ * @brief Calculates crisp output values of system
+ * Internal function, center of area / gravity method
+ * @param output index of output
+ */
+void fzz_defuzzify(int output){
+    int i = 0;
+    int j = 0;
+    double from = DBL_MAX;
+    double to = -DBL_MAX;
+    double x = 0;
+    double numerator = 0;
+    double denominator = 0;   
+    double max = 0;
+    
+    //search for range
+    for(i = 0; i < infOut[output].length; i++){
+        j = infOut[output].res[j].fSet;
+        if(fzzSystem.outSet[output].fSet[j].left < from)
+            from = fzzSystem.outSet[output].fSet[j].left;
+        if(fzzSystem.outSet[output].fSet[j].right > to)
+            to = fzzSystem.outSet[output].fSet[j].right;
+    }
+
+    //integration 
+    for(x = from; x <= to+COG_STEP; x+=COG_STEP){
+        max = fzz_outputValue(output, x);
+        numerator += x*max;
+        denominator += max;
+    }
+    
+    //x coord of center of gravity
+    x = numerator / denominator;
+    
+    //membership of center
+    fzzSystem.output[output] = fzz_outputValue(output, x);
 }
 
 void fzz_calculateOutput(){
-    //TODO
+    int i = 0;
+    int j = 0;
+       
+    //fuzzifycation process
+    for(i = 0; i < fzzSystem.inLen; i++){
+        fzfOut[i].length = 0;
+        fzz_fuzzify(i);
+    }
+    
+    //inferential mechanism
+    for(i = 0; i < fzzSystem.ruLen; i++){
+        fzz_ininference(i);
+    }
+    
+    //defuzzifycation process
+    for(i = 0; i < fzzSystem.outLen; i++){
+        fzz_defuzzify(i);
+    }
 }
 
 ///////////////////////////////////////////////////

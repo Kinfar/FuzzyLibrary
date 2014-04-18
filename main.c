@@ -48,9 +48,9 @@ void createExample(){
     fzz_setOutputFcn(1, 0, -1.0,  0.0, 1.0, "slight");
     fzz_setOutputFcn(2, 0,  0.0,  1.0, 2.0, "zero");
     //second output (brake)
-    fzz_setOutputFcn(0, 1, -2.0, -1.0, 0.0, "hard");
-    fzz_setOutputFcn(1, 1, -1.0,  0.0, 1.0, "slight");
-    fzz_setOutputFcn(2, 1,  0.0,  1.0, 2.0, "zero");
+    fzz_setOutputFcn(0, 1, -4.0, -2.0, 0.0, "hard");
+    fzz_setOutputFcn(1, 1, -2.0,  0.0, 2.0, "slight");
+    fzz_setOutputFcn(2, 1,  0.0,  2.0, 4.0, "zero");
     //input and output sets are defined
     printf(" completed");
     
@@ -101,10 +101,28 @@ void printExample(){
 }
 
 /**
- * @brief Output calculation example (system deinitialiaztion included)
+ * @brief Output calculation example
  */
 void gettingOutputExample(){
-
+    int i = 0;
+    
+    //sets system input
+    printf("\nSetting input to (0.2, 0.45)");
+    fzz_setInput(0, 0.2);
+    fzz_setInput(1, 0.45);
+    printf(" ... completed\n");
+    
+    //output calculation
+    printf("\nCalculating output ...");
+    fzz_calculateOutput();
+    printf(" completed\n");
+     
+    //output getting
+    printf("\nGetting output\n");
+    for(i = 0; i < 2; i++){
+        printf("output%d: %f\n", i, fzz_getOutput(i));
+    }
+    printf("... completed\n");
 }
 
 /**
