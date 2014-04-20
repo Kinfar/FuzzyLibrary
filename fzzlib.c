@@ -1,3 +1,21 @@
+/*
+ * This file is part of FuzzyLibrary thats implements common fuzzy system.
+ * Copyright (C) 2014, Petr Kačer <kacerpetr@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 /**
  * @brief Fuzzy logic library source
  * @author Petr Kacer <kacerpetr@gmail.com>
@@ -19,15 +37,58 @@
 //////// Defines //////////////////////////////////
 ///////////////////////////////////////////////////
 
+/**
+ * @brief Maximal length of name of fuzzy set and input / output set string
+ */
 #define NAME_LENGTH 16
+
+/**
+ * @brief Maximal lengths of inferential mechanism rule string
+ */
 #define RULE_LENGTH 128
+
+/**
+ * @brief Maximal number of inferential mechanism rules
+ */
 #define MAX_RULES 256
+
+/**
+ * @brief Maximal number of inputs of fuzzy system
+ */
 #define MAX_INPUTS 4
+
+/**
+ * @brief Maximal number of outputs of fuzzy system
+ */
 #define MAX_OUTPUTS 2
+
+/**
+ * @brief Maximal number of fuzzy sets in input / output list
+ */
 #define MAX_FSETS 16
+
+/**
+ * @brief Maximal number of matching rules of inferential mechanism for one output
+ */
 #define MAX_INFRES 64
+
+/**
+ * @brief Length of buffer used for parsing inferential mechanism rule
+ * Length can be eqal to NAME_LENGTH but its length must be >= 4 
+ */
 #define WBUF_LENGTH 16
+
+/**
+ * @brief Size of integration step during defuzzification
+ * Used when searching for center of gravity of area
+ */
 #define COG_STEP 0.02
+
+/*
+ * @brief Uncomment if you want to see debug output
+ * You will get more info about output calculation
+ */
+//#define DEBUG_MSG
 
 ///////////////////////////////////////////////////
 //////// Data types ///////////////////////////////
@@ -307,7 +368,7 @@ void fzz_fuzzify(int in){
         if(fzzSystem.input[in] <= fzzSystem.inSet[in].fSet[i].top){
             double k = 1.0 / (fzzSystem.inSet[in].fSet[i].top - fzzSystem.inSet[in].fSet[i].left); 
             double x = fzzSystem.input[in] - fzzSystem.inSet[in].fSet[i].left;
-            fzfOut[in].res[fzfOut[in].length].membership = k*x;
+            fzfOut[in].res[fzfOut[in].length].membership = k*x;           
         }
         //input intersects right part of fuzzy set
         else{
@@ -315,6 +376,15 @@ void fzz_fuzzify(int in){
             double x = fzzSystem.input[in] - fzzSystem.inSet[in].fSet[i].top;
             fzfOut[in].res[fzfOut[in].length].membership = k*x + 1;
         }
+        
+        #ifdef DEBUG_MSG
+        printf("%s - %s: x=%f, A(x)=%f\n", 
+            fzzSystem.inSet[in].name, 
+            fzzSystem.inSet[in].fSet[i].name, 
+            fzzSystem.input[in], 
+            fzfOut[in].res[fzfOut[in].length].membership
+        );
+        #endif
         
         //fuzzy set name and index
         fzfOut[in].res[fzfOut[in].length].setIndex = i;
@@ -348,7 +418,7 @@ void fzz_ininference(int ruleIndex){
     int k = 0;
     int match = 0;
     double min = 0;
-         
+            
     //state machine to process inferential mechanism rule
     while((ch = fzzSystem.rule[ruleIndex][i]) != '\0'){
         switch(state){
@@ -492,6 +562,16 @@ void fzz_ininference(int ruleIndex){
     
     //saving evaluation result
     if(match == inLen){
+        #ifdef DEBUG_MSG
+        printf("%s \n -> passed (%s(%d) - %s(%d): %f)\n", 
+            fzzSystem.rule[ruleIndex], 
+            fzzSystem.outSet[output].name,
+            output,
+            fzzSystem.outSet[output].fSet[outSet].name,
+            outSet,
+            min
+        );
+        #endif
         infOut[output].res[infOut[output].length].value = min;
         infOut[output].res[infOut[output].length].fSet = outSet;
         infOut[output].length++;
@@ -559,46 +639,59 @@ void fzz_defuzzify(int output){
     
     //search for range
     for(i = 0; i < infOut[output].length; i++){
-        j = infOut[output].res[j].fSet;
+        j = infOut[output].res[i].fSet;
         if(fzzSystem.outSet[output].fSet[j].left < from)
             from = fzzSystem.outSet[output].fSet[j].left;
         if(fzzSystem.outSet[output].fSet[j].right > to)
             to = fzzSystem.outSet[output].fSet[j].right;
     }
 
+    #ifdef DEBUG_MSG
+    printf("%s: range(%f to %f)\n", fzzSystem.outSet[output].name, from, to);
+    #endif
+    
     //integration 
-    for(x = from; x <= to+COG_STEP; x+=COG_STEP){
+    for(x = from; x < to+COG_STEP; x+=COG_STEP){
         max = fzz_outputValue(output, x);
         numerator += x*max;
         denominator += max;
     }
-    
+
     //x coord of center of gravity
-    x = numerator / denominator;
-    
-    //membership of center
-    fzzSystem.output[output] = fzz_outputValue(output, x);
+    fzzSystem.output[output] = numerator / denominator;
 }
 
 void fzz_calculateOutput(){
     int i = 0;
     int j = 0;
-       
+
+    #ifdef DEBUG_MSG
+    printf("\nOutput calculation\n------------------\nFuzzyfication:\n");
+    #endif
+    
     //fuzzifycation process
     for(i = 0; i < fzzSystem.inLen; i++){
         fzfOut[i].length = 0;
         fzz_fuzzify(i);
     }
     
+    #ifdef DEBUG_MSG
+    printf("\nInference:\n");
+    #endif
+    
     //inferential mechanism
-    for(i = 0; i < fzzSystem.ruLen; i++){
+    for(i = 0; i < fzzSystem.outLen; i++)
+        infOut[i].length = 0;
+    for(i = 0; i < fzzSystem.ruLen; i++)
         fzz_ininference(i);
-    }
+    
+    #ifdef DEBUG_MSG
+    printf("\nDefuzzyfication:\n");
+    #endif
     
     //defuzzifycation process
-    for(i = 0; i < fzzSystem.outLen; i++){
+    for(i = 0; i < fzzSystem.outLen; i++)
         fzz_defuzzify(i);
-    }
 }
 
 ///////////////////////////////////////////////////
@@ -683,4 +776,151 @@ void fzz_printSystem(){
     
     //system rules
     fzz_printRules();
+}
+
+///////////////////////////////////////////////////
+//////// Tests ////////////////////////////////////
+///////////////////////////////////////////////////
+
+void fzz_test1(){
+    double x1 = 0;
+
+    //fuzzy system init
+    fzz_init(1, 1);
+
+    //init of sets of input and output fuzzy sets
+    fzz_initInputFcns(0, 3, "input");
+    fzz_initOutputFcns(0, 3, "output");
+    
+    //input fuzzy sets
+    fzz_setInputFcn(0, 0, -2.0, -1.0,  0.0, "negative");
+    fzz_setInputFcn(1, 0, -1.0,  0.0,  1.0, "zero");
+    fzz_setInputFcn(2, 0,  0.0,  1.0,  2.0, "pozitive");
+    
+    //output fuzzy sets
+    fzz_setOutputFcn(0, 0, -2.0, -1.0, 0.0, "negative");
+    fzz_setOutputFcn(1, 0, -1.0,  0.0, 1.0, "zero");
+    fzz_setOutputFcn(2, 0,  0.0,  1.0, 2.0, "pozitive");
+       
+    //rules for output
+    fzz_addRule("if input is negative then output is pozitive");
+    fzz_addRule("if input is zero then output is zero");
+    fzz_addRule("if input is pozitive then output is negative");
+    
+    //prints system
+    fzz_printSystem();
+    
+    //output calculation
+    printf("\nCalculated outputs:\n");
+    for(x1 = -1; x1 <= 1; x1 += 0.1){
+        fzz_setInput(0, x1);
+        fzz_calculateOutput();
+        printf("%+f => %+f\n", x1, fzz_getOutput(0));
+    }
+}
+
+void fzz_test2(){
+    double x1 = 0;
+
+    //fuzzy system init
+    fzz_init(1, 2);
+
+    //init of sets of input and output fuzzy sets
+    fzz_initInputFcns(0, 3, "input");
+    fzz_initOutputFcns(0, 3, "output1");
+    fzz_initOutputFcns(1, 3, "output2");
+    
+    //input fuzzy sets
+    fzz_setInputFcn(0, 0, -2.0, -1.0,  0.0, "negative");
+    fzz_setInputFcn(1, 0, -1.0,  0.0,  1.0, "zero");
+    fzz_setInputFcn(2, 0,  0.0,  1.0,  2.0, "pozitive");
+    
+    //output1 fuzzy sets
+    fzz_setOutputFcn(0, 0, -2.0, -1.0, 0.0, "negative");
+    fzz_setOutputFcn(1, 0, -1.0,  0.0, 1.0, "zero");
+    fzz_setOutputFcn(2, 0,  0.0,  1.0, 2.0, "pozitive");
+   
+    //output2 fuzzy sets
+    fzz_setOutputFcn(0, 1, -4.0, -2.0, 0.0, "negative");
+    fzz_setOutputFcn(1, 1, -2.0,  0.0, 2.0, "zero");
+    fzz_setOutputFcn(2, 1,  0.0,  2.0, 4.0, "pozitive");
+    
+    //rules for output
+    fzz_addRule("if input is negative then output1 is pozitive");
+    fzz_addRule("if input is zero then output1 is zero");
+    fzz_addRule("if input is pozitive then output1 is negative");
+    fzz_addRule("if input is negative then output2 is negative");
+    fzz_addRule("if input is zero then output2 is negative");
+    fzz_addRule("if input is pozitive then output2 is pozitive");
+    
+    //prints system
+    fzz_printSystem();
+    
+    //output calculation
+    printf("\nCalculated outputs:\n");
+    for(x1 = -1; x1 <= 1; x1 += 0.1){
+        fzz_setInput(0, x1);
+        fzz_calculateOutput();
+        printf("%+f => %+f %+f\n", x1, fzz_getOutput(0), fzz_getOutput(1));
+    }
+}
+
+void fzz_test3(){
+    double x1 = 0;
+    double x2 = 0;
+
+    //fuzzy system init
+    fzz_init(2, 1);
+
+    //init of sets of input and output fuzzy sets
+    fzz_initInputFcns(0, 3, "input1");
+    fzz_initInputFcns(1, 3, "input2");
+    fzz_initOutputFcns(0, 3, "output");
+    
+    //input1 fuzzy sets
+    fzz_setInputFcn(0, 0, -2.0, -1.0,  0.0, "negative");
+    fzz_setInputFcn(1, 0, -1.0,  0.0,  1.0, "zero");
+    fzz_setInputFcn(2, 0,  0.0,  1.0,  2.0, "pozitive");
+
+    //input1 fuzzy sets
+    fzz_setInputFcn(0, 1, -2.0, -1.0,  0.0, "negative");
+    fzz_setInputFcn(1, 1, -1.0,  0.0,  1.0, "zero");
+    fzz_setInputFcn(2, 1,  0.0,  1.0,  2.0, "pozitive");
+    
+    //output fuzzy sets
+    fzz_setOutputFcn(0, 0, -2.0, -1.0, 0.0, "negative");
+    fzz_setOutputFcn(1, 0, -1.0,  0.0, 1.0, "zero");
+    fzz_setOutputFcn(2, 0,  0.0,  1.0, 2.0, "pozitive");
+       
+    //rules for output
+    fzz_addRule("if input1 is negative and input2 is negative then output is negative");
+    fzz_addRule("if input1 is negative and input2 is zero then output is negative");
+    fzz_addRule("if input1 is negative and input2 is pozitive then output is zero");
+    fzz_addRule("if input1 is zero and input2 is negative then output is negative");
+    fzz_addRule("if input1 is zero and input2 is zero then output is zero");
+    fzz_addRule("if input1 is zero and input2 is pozitive then output is pozitive");
+    fzz_addRule("if input1 is pozitive and input2 is negative then output is zero");
+    fzz_addRule("if input1 is pozitive and input2 is zero then output is pozitive");
+    fzz_addRule("if input1 is pozitive and input2 is pozitive then output is pozitive");
+    
+    //prints system
+    fzz_printSystem();
+    
+    //output calculation
+    printf("\nCalculated outputs:\n x1\\x2 |");
+    for(x2 = -1; x2 < 1.1; x2 += 0.25){
+        printf(" %+1.2f |",x2); 
+    }
+    printf("\n--------------------------------------------------------------------------------\n");
+    for(x1 = -1; x1 < 1.1; x1 += 0.25){
+        printf(" %+1.2f |",x1);
+        for(x2 = -1; x2 < 1.1; x2 += 0.25){
+            fzz_setInput(0, x1);
+            fzz_setInput(1, x2);
+            fzz_calculateOutput();
+            printf(" %+1.2f |", fzz_getOutput(0));
+        }
+        printf("\n");
+    }
+    printf("--------------------------------------------------------------------------------\n");
 }
