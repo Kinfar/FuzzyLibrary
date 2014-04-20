@@ -143,10 +143,10 @@ void fzz_test1();
  * @brief Second output calculation test 
  * Note: test is not automated
  */
-void fzz_test1();
+void fzz_test2();
 
 /**
  * @brief Third output calculation test 
  * Note: test is not automated
  */
-void fzz_test1();
+void fzz_test3();
