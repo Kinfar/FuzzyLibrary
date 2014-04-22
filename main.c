@@ -126,6 +126,9 @@ void gettingOutputExample(){
     printf("\nGetting output\n");
     printf("output%d: %f\n", i, fzz_getOutput(0));
     printf("... completed\n");
+    
+    //fuzzy system deinit
+    fzz_deinit();
 }
 
 /**

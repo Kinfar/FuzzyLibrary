@@ -35,6 +35,11 @@
 void fzz_init(int inputs, int outputs);
 
 /**
+ * @brief Deinitialization of fuzzy system
+ */
+void fzz_deinit();
+
+/**
  * @brief Initialization of membership functions input set
  * @param index index of input membership functions set
  * @param length required number of membership functions in set

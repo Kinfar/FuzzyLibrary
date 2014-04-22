@@ -85,10 +85,15 @@
 #define COG_STEP 0.02
 
 /*
- * @brief Uncomment if you want to see debug output
- * You will get more info about output calculation
+ * @brief Uncomment if you want to get debug file
+ * You will get more info about output calculation etc
  */
-//#define DEBUG_MSG
+//#define DEBUG_MODE
+
+/**
+ * @brief Log file path name
+ */
+#define LOG_FILE "fzz_log.txt"
 
 ///////////////////////////////////////////////////
 //////// Data types ///////////////////////////////
@@ -172,6 +177,10 @@ TFuzzifyOut fzfOut[MAX_INPUTS];
 //Inferential mechanism output
 TInfOut infOut[MAX_OUTPUTS];
     
+#ifdef DEBUG_MODE
+FILE* fzz_logFile = NULL;
+#endif
+
 ///////////////////////////////////////////////////
 //////// Main functions ///////////////////////////
 ///////////////////////////////////////////////////
@@ -179,9 +188,17 @@ TInfOut infOut[MAX_OUTPUTS];
 void fzz_init(int inputs, int outputs){
     int i = 0;
     int j = 0;
+
+    //opens log file
+    #ifdef DEBUG_MODE
+    fzz_logFile = fopen(LOG_FILE, "w");    
+    assert(fzz_logFile != NULL && "Cant open log file in fzz_init(...)");
+    #endif
     
-    //maximum input / output count check
+    //maximum input count check
     assert(inputs <= MAX_INPUTS && "Required number of inputs exceeds maximum in fzz_init(...)");
+    
+    //maximum output count check
     assert(outputs <= MAX_OUTPUTS && "Required number of outputs exceeds maximum in fzz_init(...)");
     
     //number of inputs and outputs
@@ -223,7 +240,18 @@ void fzz_init(int inputs, int outputs){
     for(i = 0; i < MAX_RULES; i++) fzzSystem.rule[i][0] = '\0';
 }
 
+void fzz_deinit(){
+    #ifdef DEBUG_MODE
+    fprintf(fzz_logFile, "CALL: fzz_deinit()\n");
+    fclose(fzz_logFile);
+    fzz_logFile = NULL;
+    #endif
+}
+    
 void fzz_initInputFcns(int index, int length, char* name){
+    #ifdef DEBUG_MODE
+    fprintf(fzz_logFile, "CALL: fzz_initInputFcns(%d, %d, %s)\n", index, length, name);
+    #endif
     assert(index < fzzSystem.inLen && "Index out of range in fzz_initInputFcns(...)");
     assert(length <= MAX_FSETS && "Required number of fuzzy sets exceeds maximum in fzz_initInputFcns(...)");
     fzzSystem.inSet[index].length = length;
@@ -231,6 +259,9 @@ void fzz_initInputFcns(int index, int length, char* name){
 }
 
 void fzz_initOutputFcns(int index, int length, char* name){
+    #ifdef DEBUG_MODE
+    fprintf(fzz_logFile, "CALL: fzz_initOutputFcns(%d, %d, %s)\n", index, length, name);
+    #endif
     assert(index < fzzSystem.outLen && "Index out of range in fzz_initOutputFcns(...)");
     assert(length <= MAX_FSETS && "Required number of fuzzy sets exceeds maximum in fzz_initOutputFcns(...)");
     fzzSystem.outSet[index].length = length;
@@ -238,6 +269,9 @@ void fzz_initOutputFcns(int index, int length, char* name){
 }
 
 void fzz_setInputFcn(int index, int fcSet, double left, double top, double right, char* name){
+    #ifdef DEBUG_MODE
+    fprintf(fzz_logFile, "CALL: fzz_setInputFcn(%d, %d, %f, %f, %f, %s)\n", index, fcSet, left, top, right, name);
+    #endif
     assert(fcSet < fzzSystem.inLen && "Input set index out of range in fzz_setInputFcn(...)");
     assert(index < fzzSystem.inSet[fcSet].length && "Index out of range in fzz_setInputFcn(...)");
     
@@ -251,6 +285,9 @@ void fzz_setInputFcn(int index, int fcSet, double left, double top, double right
 }
 
 void fzz_setOutputFcn(int index, int fcSet, double left, double top, double right, char* name){
+    #ifdef DEBUG_MODE
+    fprintf(fzz_logFile, "CALL: fzz_setOutputFcn(%d, %d, %f, %f, %f, %s)\n", index, fcSet, left, top, right, name);
+    #endif
     assert(fcSet < fzzSystem.outLen && "Output set index out of range in fzz_setOutputFcn(...)");
     assert(index < fzzSystem.outSet[fcSet].length && "Index out of range in fzz_setOutputFcn(...)");
     
@@ -264,17 +301,26 @@ void fzz_setOutputFcn(int index, int fcSet, double left, double top, double righ
 }
 
 void fzz_addRule(char* rule){
+    #ifdef DEBUG_MODE
+    fprintf(fzz_logFile, "CALL: fzz_addRule(%s)\n", rule);
+    #endif
     assert(fzzSystem.ruLen < MAX_RULES && "Maximum number of inferential mechanism rules exceeded in addRule(...)");
     strncpy(fzzSystem.rule[fzzSystem.ruLen], rule, RULE_LENGTH);
     fzzSystem.ruLen++;
 }
 
 void fzz_setInput(int index, double value){
+    #ifdef DEBUG_MODE
+    fprintf(fzz_logFile, "CALL: fzz_setInput(%d, %f)\n", index, value);
+    #endif
     assert(index < fzzSystem.inLen && "Index out of range in fzz_setInput(...)");
     fzzSystem.input[index] = value;
 }
 
 double fzz_getOutput(int index){
+    #ifdef DEBUG_MODE
+    fprintf(fzz_logFile, "CALL: fzz_getOutput(%d)\n", index);
+    #endif
     assert(index < fzzSystem.outLen && "Index out of range in fzz_getOutput(...)");
     return fzzSystem.output[index];
 }
@@ -358,6 +404,10 @@ int fzz_outputFSetIndex(int index, char* name){
 void fzz_fuzzify(int in){
     int i = 0;
     
+    #ifdef DEBUG_MODE
+    fprintf(fzz_logFile, "CALL: fzz_fuzzify(%d)\n", in);
+    #endif
+    
     //through all fuzzy sets of given output
     for(i = 0; i < fzzSystem.inSet[in].length; i++){
         //input value intersects fuzzy set
@@ -377,8 +427,8 @@ void fzz_fuzzify(int in){
             fzfOut[in].res[fzfOut[in].length].membership = k*x + 1;
         }
         
-        #ifdef DEBUG_MSG
-        printf("%s - %s: x=%f, A(x)=%f\n", 
+        #ifdef DEBUG_MODE
+        fprintf(fzz_logFile, "%s - %s: x=%f, A(x)=%f\n", 
             fzzSystem.inSet[in].name, 
             fzzSystem.inSet[in].fSet[i].name, 
             fzzSystem.input[in], 
@@ -418,6 +468,10 @@ void fzz_ininference(int ruleIndex){
     int k = 0;
     int match = 0;
     double min = 0;
+    
+    #ifdef DEBUG_MODE
+    fprintf(fzz_logFile, "CALL: fzz_ininference(%d)\n", ruleIndex);
+    #endif
             
     //state machine to process inferential mechanism rule
     while((ch = fzzSystem.rule[ruleIndex][i]) != '\0'){
@@ -562,8 +616,8 @@ void fzz_ininference(int ruleIndex){
     
     //saving evaluation result
     if(match == inLen){
-        #ifdef DEBUG_MSG
-        printf("%s \n -> passed (%s(%d) - %s(%d): %f)\n", 
+        #ifdef DEBUG_MODE
+        fprintf(fzz_logFile, "%s \n -> passed (%s(%d) - %s(%d): %f)\n", 
             fzzSystem.rule[ruleIndex], 
             fzzSystem.outSet[output].name,
             output,
@@ -637,6 +691,10 @@ void fzz_defuzzify(int output){
     double denominator = 0;   
     double max = 0;
     
+    #ifdef DEBUG_MODE
+    fprintf(fzz_logFile, "CALL: fzz_defuzzify(%d)\n", output);
+    #endif
+    
     //search for range
     for(i = 0; i < infOut[output].length; i++){
         j = infOut[output].res[i].fSet;
@@ -646,8 +704,8 @@ void fzz_defuzzify(int output){
             to = fzzSystem.outSet[output].fSet[j].right;
     }
 
-    #ifdef DEBUG_MSG
-    printf("%s: range(%f to %f)\n", fzzSystem.outSet[output].name, from, to);
+    #ifdef DEBUG_MODE
+    fprintf(fzz_logFile, "%s: range(%f to %f)\n", fzzSystem.outSet[output].name, from, to);
     #endif
     
     //integration 
@@ -665,8 +723,12 @@ void fzz_calculateOutput(){
     int i = 0;
     int j = 0;
 
-    #ifdef DEBUG_MSG
-    printf("\nOutput calculation\n------------------\nFuzzyfication:\n");
+    #ifdef DEBUG_MODE
+    fprintf(fzz_logFile, "CALL: fzz_calculateOutput()\n");
+    #endif
+    
+    #ifdef DEBUG_MODE
+    fprintf(fzz_logFile, "\nOutput calculation\n------------------\nFuzzyfication:\n");
     #endif
     
     //fuzzifycation process
@@ -675,8 +737,8 @@ void fzz_calculateOutput(){
         fzz_fuzzify(i);
     }
     
-    #ifdef DEBUG_MSG
-    printf("\nInference:\n");
+    #ifdef DEBUG_MODE
+    fprintf(fzz_logFile, "\nInference:\n");
     #endif
     
     //inferential mechanism
@@ -685,8 +747,8 @@ void fzz_calculateOutput(){
     for(i = 0; i < fzzSystem.ruLen; i++)
         fzz_ininference(i);
     
-    #ifdef DEBUG_MSG
-    printf("\nDefuzzyfication:\n");
+    #ifdef DEBUG_MODE
+    fprintf(fzz_logFile, "\nDefuzzyfication:\n");
     #endif
     
     //defuzzifycation process
@@ -817,6 +879,9 @@ void fzz_test1(){
         fzz_calculateOutput();
         printf("%+f => %+f\n", x1, fzz_getOutput(0));
     }
+    
+    //fuzzy system deinit
+    fzz_deinit();
 }
 
 void fzz_test2(){
@@ -863,6 +928,9 @@ void fzz_test2(){
         fzz_calculateOutput();
         printf("%+f => %+f %+f\n", x1, fzz_getOutput(0), fzz_getOutput(1));
     }
+       
+    //fuzzy system deinit
+    fzz_deinit();
 }
 
 void fzz_test3(){
@@ -923,4 +991,7 @@ void fzz_test3(){
         printf("\n");
     }
     printf("--------------------------------------------------------------------------------\n");
+    
+    //fuzzy system deinit
+    fzz_deinit();
 }
